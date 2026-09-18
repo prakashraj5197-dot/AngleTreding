@@ -97,6 +97,43 @@ resolved lifecycle outcomes, matching closed paper positions and a notification 
 every row is engine output. On any given live day the engine may legitimately sit at
 NO TRADE; an empty *active* signal list with a stated reason is correct behaviour.
 
+## Market-data providers (swappable)
+`lib/provider_registry.py` is the single place that decides the live vendor;
+`settings.data.provider` (`simulated` | `angelone`) selects it and `get_provider()` in
+`lib/signal_engine.py` resolves it. Both implementations satisfy the same surface
+(`get_quote`, `build_chain`, `today_candles`, `next_expiries`, `get_status`), so no engine
+code knows which feed is attached.
+
+- **simulated** (default) — `lib/sim_provider.py`. Deterministic synthetic NSE feed with an
+  always-on session. Also powers backtest replay for BOTH providers.
+- **angelone** — `lib/broker_angelone.py`. Real Angel One SmartAPI feed:
+  - Session: `SmartConnect.generateSession(client_code, mpin, pyotp TOTP)`; the jwt is
+    cached and re-minted on `AG8001/AG8002/AB1010/AB8050` or after ~20h.
+  - Instruments: the public `OpenAPIScripMaster.json` dump is downloaded once per day and
+    filtered to NIFTY/BANKNIFTY index tokens (26000 / 26009), OPTIDX contracts and FUTIDX.
+    Verified live: 1,700 NIFTY option contracts across 18 expiries.
+  - Lot sizes are taken from the broker's master and override the static table
+    (NIFTY 75 → 65, BANKNIFTY 35 → 30 as of Sept 2026) so live sizing is correct.
+  - Quotes/chain use `getMarketData("FULL", …)` in ≤50-token batches (OI, bid/ask depth,
+    `avgPrice` as VWAP); candles use `getCandleData` with ONE/FIVE/FIFTEEN_MINUTE.
+  - SmartAPI publishes **no IV or greeks**, so both are derived locally from the premium
+    (`lib/option_math.implied_vol` + `bs_greeks`). An unsolvable premium yields iv=0 and
+    zero greeks rather than an invented value (AC-72).
+  - Credentials live ONLY in backend/.env (`ANGELONE_API_KEY`, `ANGELONE_CLIENT_CODE`,
+    `ANGELONE_MPIN`, `ANGELONE_TOTP_SECRET`) and are never returned by any endpoint.
+
+### Fail-safe contract (user's explicit choice)
+A failing live feed NEVER falls back to simulated prices. The adapter raises
+`ProviderUnavailable`; a FastAPI handler turns that into **503** on data endpoints, while
+status endpoints (`/api/health`, `/api/market/status`, `/api/market/freshness`) stay 200 and
+report the degraded truth. The engine writes a `NO_TRADE` state with
+"🔴 DATA FEED DISCONNECTED — SIGNAL GENERATION PAUSED" plus the missing env vars, the
+monitor leaves ACTIVE signals untouched, and the UI shows FEED DISCONNECTED / DATA STALE.
+Switching provider triggers an immediate re-evaluation and sets the session mode to match
+(`angelone` → real NSE hours, `simulated` → always-on demo).
+Routes: `GET /api/provider/status`, `POST /api/provider/select/{name}`,
+`POST /api/provider/test`, `POST /api/provider/instruments/refresh` (all mutations admin-only).
+
 ## Calibration decisions (measured, not guessed)
 Two spec defaults were measured against the seeded history and adjusted, because the
 literal values made the system incapable of ever producing a signal. Both stay fully
@@ -128,8 +165,11 @@ historical data" loop, not a silent override.
 
 ## Deliberate deviations from the brief
 - Stack is FastAPI/React/MongoDB (pod default), not ASP.NET Core/Angular/SQL Server.
-- Market data is the built-in deterministic simulator (user-approved), not a live broker API.
+- Market data defaults to the built-in deterministic simulator; the Angel One SmartAPI
+  adapter is implemented and selectable but needs real credentials in backend/.env.
 - Historical option contracts are synthesised deterministically at each historical
   timestamp rather than stored row-by-row, keeping the dataset reproducible and compact.
+  This holds for BOTH providers — backtesting always replays stored candles, never a live feed.
 - Notifications are in-app (bell + toasts) only; Telegram/email/push are left as future
   channels behind the same `notify()` seam.
+- Live ticks use REST polling, not SmartWebSocketV2 streaming.

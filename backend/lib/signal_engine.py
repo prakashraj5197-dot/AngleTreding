@@ -8,6 +8,7 @@ signal, so it stays reproducible after live conditions change (AC-07).
 
 from __future__ import annotations
 
+import logging
 import time as _time
 import uuid
 from dataclasses import dataclass
@@ -20,6 +21,7 @@ from lib.db import db
 from lib.dates import IST, SESSION_SECONDS, UTC, ist_date, ist_midnight_utc, now_utc
 from lib.engine import Series, compute_indicators, evaluate_direction, select_option, calc_levels, strength_label
 from lib.risk import ACTIVE_STATUSES, risk_verdict
+from lib.broker_angelone import ProviderUnavailable
 from lib.sim_provider import SimulatedProvider
 from models.trading import (
     AppSettings,
@@ -32,11 +34,23 @@ from models.trading import (
 FEED_SYMBOLS = ["NIFTY", "BANKNIFTY"]
 ANALYSIS_SYMBOLS = ["NIFTY", "BANKNIFTY"]
 
-_provider = SimulatedProvider()
+logger = logging.getLogger("quantpulse.engine")
+
+_provider = None  # kept for backwards compatibility; use get_provider()
+_active_provider_name = "simulated"
 
 
-def get_provider() -> SimulatedProvider:
-    return _provider
+def get_provider():
+    """The market-data vendor currently selected in Settings.
+
+    Returns the SIMULATOR or the Angel One SmartAPI adapter — both satisfy the same
+    surface, so no engine code knows the difference. When the live vendor is selected but
+    failing, its methods raise ProviderUnavailable and callers fail safe (DATA STALE,
+    signal generation paused) rather than substituting simulated prices.
+    """
+    from lib import provider_registry
+
+    return provider_registry.resolve(_active_provider_name)
 
 
 # ---------------------------------------------------------------- settings
@@ -50,12 +64,18 @@ async def get_settings(force: bool = False) -> AppSettings:
     raw = await db.settings.find_one({"_id": "app"})
     doc = AppSettings(**(raw or {})) if raw else AppSettings()
     doc.data.session_mode = doc.data.session_mode or "always_on"
-    _provider.set_session_mode(doc.data.session_mode)
-    _provider.force_stale = doc.data.force_stale
-    if doc.data.force_stale and _provider.frozen_at is None:
-        _provider.freeze_feed()
-    elif not doc.data.force_stale:
-        _provider.unfreeze_feed()
+    global _active_provider_name
+    _active_provider_name = doc.data.provider
+    prov = get_provider()
+    # the freeze / session-mode toggles are demo controls: they only apply to the simulator,
+    # a real exchange feed's clock and staleness come from the vendor itself
+    if getattr(prov, "name", "simulated") == "simulated":
+        prov.set_session_mode(doc.data.session_mode)
+        prov.force_stale = doc.data.force_stale
+        if doc.data.force_stale and prov.frozen_at is None:
+            prov.freeze_feed()
+        elif not doc.data.force_stale:
+            prov.unfreeze_feed()
     _SETTINGS_CACHE.update(doc=doc, ts=_time.monotonic())
     return doc
 
@@ -80,7 +100,7 @@ async def sim_anchor(symbol: str, day_key: str) -> float:
     state = await db.sim_state.find_one({"symbol": symbol})
     if state and state.get("day_key") == day_key and state.get("anchor_close"):
         return state["anchor_close"]
-    anchor = await anchor_close(symbol) or _provider.live_anchor(symbol, None)
+    anchor = await anchor_close(symbol) or get_provider().live_anchor(symbol, None)
     await db.sim_state.replace_one(
         {"symbol": symbol},
         {"symbol": symbol, "day_key": day_key, "anchor_close": anchor, "updated_at": now_utc()},
@@ -104,8 +124,8 @@ async def load_series(symbol: str, timeframe: str, limit: int, quote=None) -> Se
         by_ts[ts] = d
     if quote is None or quote.market_status == "OPEN":
         anchor = await sim_anchor(symbol, get_provider()._clock()[0])
-        today_1m = _provider.today_candles(symbol, anchor, "1m")
-        today_tf = today_1m if per == 1 else _provider._aggregate(today_1m, per)
+        today_1m = get_provider().today_candles(symbol, anchor, "1m")
+        today_tf = today_1m if per == 1 else get_provider()._aggregate(today_1m, per)
         for d in today_tf:
             ts = d["ts"] if d["ts"].tzinfo else d["ts"].replace(tzinfo=UTC)
             d["ts"] = ts
@@ -142,16 +162,31 @@ async def evaluate_symbol(symbol: str, settings: AppSettings | None = None) -> E
     """One evaluation cycle for `symbol`. Stores engine state; may create a signal."""
     s = settings or await get_settings()
     t0 = _time.perf_counter()
-    provider = _provider
-    status = provider.get_status()
-    anchor = await sim_anchor(symbol, provider._clock()[0])
-    quote = provider.get_quote(symbol, anchor)
+    provider = get_provider()
+    live = getattr(provider, "name", "simulated") != "simulated"
+    try:
+        status = provider.get_status()
+        anchor = await sim_anchor(symbol, provider._clock()[0]) if not live else None
+        quote = provider.get_quote(symbol, anchor)
+    except ProviderUnavailable as exc:
+        # AC-74: the vendor is down / unauthenticated → show the real state and stop.
+        # We never fall back to simulated prices while claiming to be live.
+        state = {
+            "symbol": symbol, "ts": now_utc(), "market_status": "CLOSED",
+            "stale": True, "direction": "NO_TRADE", "score": 0.0, "display_score": 0,
+            "factors": [], "reasons": [], "indicators": {},
+            "evaluation_ms": int((_time.perf_counter() - t0) * 1000),
+            "no_trade_reason": f"🔴 DATA FEED DISCONNECTED — SIGNAL GENERATION PAUSED. {exc}",
+        }
+        await db.engine_state.replace_one({"symbol": symbol}, _clean(state), upsert=True)
+        logger.error("provider unavailable for %s: %s", symbol, exc)
+        return EngineState(**_clean(state))
 
     # freshness (36.3 / AC-02 / AC-39)
     now = now_utc()
     price_age = (now - quote.ts).total_seconds()
-    forced = provider.force_stale
-    stale = forced or (price_age > settings.data.price_fresh_s)
+    forced = bool(getattr(provider, "force_stale", False))
+    stale = forced or (price_age > s.data.price_fresh_s)
 
     state = {
         "symbol": symbol, "ts": now, "market_status": status.status,
@@ -169,9 +204,9 @@ async def evaluate_symbol(symbol: str, settings: AppSettings | None = None) -> E
 
     if status.status != "OPEN":
         return await finish({"no_trade_reason": "MARKET CLOSED — live signal generation paused."})
-    if stale and settings.data.stale_block_signals:
+    if stale and s.data.stale_block_signals:
         return await finish({"no_trade_reason": "🔴 DATA STALE — SIGNAL GENERATION PAUSED (price feed age "
-                                          f"{price_age:.0f}s exceeds the {settings.data.price_fresh_s}s freshness threshold)."
+                                          f"{price_age:.0f}s exceeds the {s.data.price_fresh_s}s freshness threshold)."
                        if not forced else "🔴 DATA STALE — SIGNAL GENERATION PAUSED (provider feed frozen — forced-stale simulation active)."})
 
     elapsed = quote.session_elapsed
@@ -331,7 +366,7 @@ def _clean(d: dict) -> dict:
 async def monitor_once() -> None:
     """Tick-level tracking of ACTIVE signals + paper positions (§36.12: monitoring only)."""
     s = await get_settings()
-    provider = _provider
+    provider = get_provider()
     status = provider.get_status()
     now = now_utc()
     valid_statuses = ACTIVE_STATUSES + ["TARGET1_HIT"]
@@ -342,23 +377,35 @@ async def monitor_once() -> None:
         for doc in signals:
             try:
                 await _monitor_signal(doc, provider, s, status, now, chain_cache)
+            except ProviderUnavailable as exc:
+                # feed problem, not a signal problem — leave the signal ACTIVE and retry
+                logger.error("monitor paused, provider unavailable: %s", exc)
+                return
             except Exception as exc:  # never let one bad tick kill the monitor
                 await db.signals.update_one({"id": doc["id"]}, {"$set": {
                     "status": "DATA_ERROR", "updated_at": now,
                     "no_trade_reason": f"monitor error: {exc}"}})
 
-    await _monitor_paper(s, provider, status, now)
+    try:
+        await _monitor_paper(s, provider, status, now)
+    except ProviderUnavailable as exc:
+        logger.error("paper monitor paused, provider unavailable: %s", exc)
+        return
 
     # periodic option-chain snapshot storage (AC-06)
-    if status.status == "OPEN" and not provider.force_stale:
+    if status.status == "OPEN" and not getattr(provider, "force_stale", False):
         minute = int(status.session_elapsed // 60)
         if minute % 15 == 0:
             existing = await db.option_chain_snapshots.find_one(
                 {"underlying": "NIFTY"}, sort=[("ts", -1)])
             if not existing or (now - (existing["ts"] if existing["ts"].tzinfo else existing["ts"].replace(tzinfo=UTC))).total_seconds() > 14 * 60:
-                anchor = await sim_anchor("NIFTY", provider._clock()[0])
-                quote = provider.get_quote("NIFTY", anchor)
-                chain = provider.build_chain("NIFTY", quote)
+                try:
+                    anchor = await sim_anchor("NIFTY", provider._clock()[0])
+                    quote = provider.get_quote("NIFTY", anchor)
+                    chain = provider.build_chain("NIFTY", quote)
+                except ProviderUnavailable as exc:
+                    logger.error("chain snapshot skipped, provider unavailable: %s", exc)
+                    return
                 await db.option_chain_snapshots.insert_one({
                     "ts": quote.ts, "underlying": "NIFTY", "spot": chain.spot,
                     "expiry": chain.rows[0].expiry if chain.rows else None,
@@ -494,7 +541,7 @@ async def execute_paper(signal_id: str) -> tuple[bool, str, dict | None]:
     if await db.paper_positions.find_one({"signal_id": signal_id, "status": "OPEN"}):
         return False, "An open paper position already exists for this signal.", None
 
-    provider = _provider
+    provider = get_provider()
     status = provider.get_status()
     anchor = await sim_anchor(sig["symbol"], provider._clock()[0])
     quote = provider.get_quote(sig["symbol"], anchor)
@@ -551,7 +598,7 @@ async def close_paper(position_id: str, reason: str = "MANUAL_EXIT") -> tuple[bo
     pos = await db.paper_positions.find_one({"id": position_id})
     if not pos or pos["status"] != "OPEN":
         return False, "Open paper position not found."
-    provider = _provider
+    provider = get_provider()
     anchor = await sim_anchor(pos["symbol"], provider._clock()[0])
     quote = provider.get_quote(pos["symbol"], anchor)
     chain = provider.build_chain(pos["symbol"], quote)

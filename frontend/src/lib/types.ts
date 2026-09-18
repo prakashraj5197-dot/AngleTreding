@@ -398,6 +398,7 @@ export interface RiskSettings {
 }
 
 export interface DataSettings {
+  provider: "simulated" | "angelone";
   session_mode: "always_on" | "market_hours";
   price_fresh_s: number;
   option_fresh_s: number;
@@ -406,6 +407,27 @@ export interface DataSettings {
   stale_block_signals: boolean;
   retention_candle_days: number;
   retention_option_snapshot_days: number;
+}
+
+export interface ProviderStatus {
+  provider: string;
+  label: string;
+  connected: boolean;
+  simulated: boolean;
+  configured: boolean;
+  missing_env: string[];
+  last_login_ist: string | null;
+  last_error: string | null;
+  detail: string;
+}
+
+export interface ProviderTestResult {
+  ok: boolean;
+  message: string;
+  client_code_masked: string | null;
+  last_login_ist: string | null;
+  missing_env: string[];
+  option_contracts: Record<string, number>;
 }
 
 export interface AppSettings {

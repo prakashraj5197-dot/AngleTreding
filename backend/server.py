@@ -14,19 +14,22 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, Request
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
+from lib.broker_angelone import ProviderUnavailable  # noqa: E402
 from lib.db import client, db, ensure_indexes  # noqa: E402
 from lib.dates import now_utc  # noqa: E402
 from routers import (  # noqa: E402
     backtest_routes,
     market,
     paper,
+    provider as provider_router,
     scanner,
     settings_routes,
     signals as signals_router,
@@ -112,6 +115,7 @@ api_router.include_router(scanner.router)
 api_router.include_router(backtest_routes.router)
 api_router.include_router(paper.router)
 api_router.include_router(settings_routes.router)
+api_router.include_router(provider_router.router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -120,6 +124,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(ProviderUnavailable)
+async def provider_unavailable_handler(request: Request, exc: ProviderUnavailable):
+    """AC-74: surface the real feed state instead of pretending data exists."""
+    logger.error("provider unavailable on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"Market-data provider unavailable: {exc}"},
+    )
+
 
 # Include the router in the main app — must stay the last statement.
 app.include_router(api_router)

@@ -394,6 +394,7 @@ class RiskSettings(BaseModel):
 
 
 class DataSettings(BaseModel):
+    provider: Literal["simulated", "angelone"] = "simulated"
     session_mode: Literal["always_on", "market_hours"] = "always_on"
     price_fresh_s: int = 3
     option_fresh_s: int = 5
@@ -430,6 +431,27 @@ class AppSettings(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ProviderStatusOut(BaseModel):
+    provider: str
+    label: str
+    connected: bool
+    simulated: bool
+    configured: bool
+    missing_env: list[str] = []
+    last_login_ist: str | None = None
+    last_error: str | None = None
+    detail: str = ""
+
+
+class ProviderTestOut(BaseModel):
+    ok: bool
+    message: str
+    client_code_masked: str | None = None
+    last_login_ist: str | None = None
+    missing_env: list[str] = []
+    option_contracts: dict[str, int] = {}
 
 
 class TokenOut(BaseModel):

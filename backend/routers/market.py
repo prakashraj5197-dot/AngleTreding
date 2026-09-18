@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query
 from lib.db import db
 from lib.dates import UTC, now_utc
 from lib.engine import compute_indicators
+from lib import provider_registry
+from lib.broker_angelone import ProviderUnavailable
 from lib.signal_engine import (
     get_provider,
     get_settings,
@@ -116,13 +118,24 @@ async def option_chain(symbol: str, expiry: str | None = None, strikes: int = 10
 async def freshness():
     s = await get_settings()
     provider = get_provider()
-    anchor = await sim_anchor("NIFTY", provider._clock()[0])
-    q = provider.get_quote("NIFTY", anchor)
+    try:
+        anchor = await sim_anchor("NIFTY", provider._clock()[0])
+        q = provider.get_quote("NIFTY", anchor)
+    except ProviderUnavailable:
+        # a dead feed is infinitely stale — report it, never invent an age
+        out = FreshnessOut(
+            price_age_s=-1, option_age_s=-1, chain_age_s=-1,
+            price_ok=False, option_ok=False, chain_ok=False,
+            forced_stale=bool(getattr(provider, "force_stale", False)),
+        )
+        out.stale = True
+        return out
     age = (now_utc() - q.ts).total_seconds()
     out = FreshnessOut(
         price_age_s=round(age, 2), option_age_s=round(age, 2), chain_age_s=round(age, 2),
         price_ok=age <= s.data.price_fresh_s, option_ok=age <= s.data.option_fresh_s,
-        chain_ok=age <= s.data.chain_fresh_s, forced_stale=provider.force_stale,
+        chain_ok=age <= s.data.chain_fresh_s,
+        forced_stale=bool(getattr(provider, "force_stale", False)),
     )
     out.stale = not (out.price_ok and out.option_ok and out.chain_ok)
     return out
@@ -141,11 +154,13 @@ async def health():
     active = await db.signals.count_documents({"status": {"$in": ["ACTIVE", "TARGET1_HIT"]}})
     provider = get_provider()
     st = provider.get_status()
+    feed = provider_registry.health(s.data.provider)
+    connected = feed["connected"] and not getattr(provider, "force_stale", False)
     return HealthOut(
-        app="ok" if database == "ok" and not fresh.stale else "degraded",
+        app="ok" if database == "ok" and connected and not fresh.stale else "degraded",
         database=database,
-        provider="connected" if not provider.force_stale else "disconnected",
-        provider_mode=f"simulated/{st.session_mode}",
+        provider="connected" if connected else "disconnected",
+        provider_mode=f"{feed['provider']}/{st.session_mode}",
         data_freshness=fresh,
         last_signal_at=last.get("created_at") if last else None,
         active_signals=active,

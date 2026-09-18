@@ -209,18 +209,18 @@ class SimulatedProvider(MarketDataProvider):
         """Returns (day_key, elapsed_seconds, status)."""
         now = datetime.now(IST)
         if self.session_mode == "market_hours":
-            elapsed = session_elapsed_seconds(now)
             open_now = now.weekday() < 5 and MARKET_OPEN <= now.time() <= MARKET_CLOSE
-            if not open_now:
-                # last completed session point
-                last_open = now.replace(hour=15, minute=30, second=0, microsecond=0)
-                if now.time() < MARKET_OPEN or now.weekday() >= 5:
-                    d = now
-                    while d.weekday() >= 5:
-                        d -= timedelta(days=1)
-                    last_open = d.replace(hour=15, minute=30, second=0, microsecond=0)
-                return d.strftime("%Y-%m-%d"), SESSION_SECONDS, "CLOSED"
-            return now.strftime("%Y-%m-%d"), elapsed, "OPEN"
+            if open_now:
+                return now.strftime("%Y-%m-%d"), session_elapsed_seconds(now), "OPEN"
+            # Market is closed: anchor to the most recent COMPLETED session. After the close
+            # on a weekday that is today; before the open (or at a weekend) walk back to the
+            # previous weekday.
+            d = now
+            if now.time() < MARKET_OPEN:
+                d -= timedelta(days=1)
+            while d.weekday() >= 5:
+                d -= timedelta(days=1)
+            return d.strftime("%Y-%m-%d"), SESSION_SECONDS, "CLOSED"
         # always_on: continuous simulated session, 1:1 wall-clock speed
         total = (now - self._EPOCH).total_seconds()
         day_number = int(total // SESSION_SECONDS)

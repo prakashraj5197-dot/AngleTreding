@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ProviderPanel } from "@/components/trading/ProviderPanel";
 import { Metric, Panel, PageShell } from "@/components/layout/PageShell";
 import { istDateTime, num } from "@/lib/format";
 import type { AppSettings, AuthState } from "@/lib/types";
@@ -36,9 +37,18 @@ export default function Settings() {
     retry: false,
   });
 
+  // Re-seed the form whenever the server copy changes (our own save, a provider switch that
+  // adjusts session mode, or another admin editing concurrently) so the inputs never show a
+  // value the backend has already moved past.
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
   useEffect(() => {
-    if (settings && !draft) setDraft(structuredClone(settings));
-  }, [settings, draft]);
+    if (!settings) return;
+    const stamp = settings.updated_at ?? "initial";
+    if (!draft || stamp !== syncedAt) {
+      setDraft(structuredClone(settings));
+      setSyncedAt(stamp);
+    }
+  }, [settings, draft, syncedAt]);
 
   const login = useMutation({
     mutationFn: () => apiPost<AuthState>("/auth/login", { email, password }),
@@ -265,6 +275,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="data">
+            <ProviderPanel signedIn={signedIn} />
             <Panel title="Market data, freshness & notifications" testid="data-settings-panel">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1">
