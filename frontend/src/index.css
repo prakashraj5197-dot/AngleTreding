@@ -1,0 +1,183 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/manrope";
+@import "@fontsource/ibm-plex-sans";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-sans: 'IBM Plex Sans', sans-serif;
+    --font-heading: 'Manrope Variable', sans-serif;
+    --font-mono: 'JetBrains Mono Variable', monospace;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+    --animate-tick-up: tick-up 0.6s ease-out;
+    --animate-tick-down: tick-down 0.6s ease-out;
+    --animate-live-pulse: live-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animate-slide-up: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    --animate-sheen: sheen 2.4s linear infinite;
+}
+
+/* Obsidian terminal theme — dark by default (see index.html <html class="dark">) */
+:root {
+    --background: #0B0E14;
+    --foreground: #F1F5F9;
+    --card: #111722;
+    --card-foreground: #F8FAFC;
+    --popover: #161F30;
+    --popover-foreground: #F8FAFC;
+    --primary: #0284C7;
+    --primary-foreground: #FFFFFF;
+    --secondary: #1E293B;
+    --secondary-foreground: #CBD5E1;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: #162232;
+    --accent-foreground: #E2E8F0;
+    --destructive: #EF4444;
+    --border: #1E293B;
+    --input: #253449;
+    --ring: #0EA5E9;
+    --chart-1: #38BDF8;
+    --chart-2: #10B981;
+    --chart-3: #F59E0B;
+    --chart-4: #EC4899;
+    --chart-5: #A78BFA;
+    --radius: 0.5rem;
+    --sidebar: #0D131C;
+    --sidebar-foreground: #E2E8F0;
+    --sidebar-primary: #0284C7;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #162232;
+    --sidebar-accent-foreground: #E2E8F0;
+    --sidebar-border: #1E293B;
+    --sidebar-ring: #0EA5E9;
+}
+
+.dark {
+    --background: #0B0E14;
+    --foreground: #F1F5F9;
+    --card: #111722;
+    --card-foreground: #F8FAFC;
+    --popover: #161F30;
+    --popover-foreground: #F8FAFC;
+    --primary: #0284C7;
+    --primary-foreground: #FFFFFF;
+    --secondary: #1E293B;
+    --secondary-foreground: #CBD5E1;
+    --muted: #1E293B;
+    --muted-foreground: #94A3B8;
+    --accent: #162232;
+    --accent-foreground: #E2E8F0;
+    --destructive: #EF4444;
+    --border: #1E293B;
+    --input: #253449;
+    --ring: #0EA5E9;
+    --chart-1: #38BDF8;
+    --chart-2: #10B981;
+    --chart-3: #F59E0B;
+    --chart-4: #EC4899;
+    --chart-5: #A78BFA;
+    --sidebar: #0D131C;
+    --sidebar-foreground: #E2E8F0;
+    --sidebar-primary: #0284C7;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #162232;
+    --sidebar-accent-foreground: #E2E8F0;
+    --sidebar-border: #1E293B;
+    --sidebar-ring: #0EA5E9;
+}
+
+@keyframes tick-up {
+    0% { background-color: rgb(16 185 129 / 0.22); }
+    100% { background-color: transparent; }
+}
+
+@keyframes tick-down {
+    0% { background-color: rgb(239 68 68 / 0.22); }
+    100% { background-color: transparent; }
+}
+
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.82); }
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes sheen {
+    0% { background-position: -160% 0; }
+    100% { background-position: 260% 0; }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "tnum" 1, "cv01" 1;
+    }
+  html {
+    @apply font-sans;
+    }
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+    }
+}
+
+@utility font-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* dense terminal tables */
+@utility grid-panel {
+  background-image: linear-gradient(to bottom right, rgb(56 189 248 / 0.04), transparent 40%);
+}
+
+@utility running-sheen {
+  background-image: linear-gradient(100deg, transparent 20%, rgb(56 189 248 / 0.18) 45%, transparent 70%);
+  background-size: 200% 100%;
+  animation: var(--animate-sheen);
+}

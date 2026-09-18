@@ -1,0 +1,193 @@
+{
+  "theme": "dark",
+  "project_name": "QuantPulse F&O Signal & Backtesting Engine",
+  "design_archetype": "Archetype 2: The Performance Pro (Precision Quantitative Trading Terminal)",
+  "colors": {
+    "surfaces": [
+      {
+        "name": "page",
+        "kind": "solid",
+        "bg": "#0B0E14",
+        "on_bg": "#F1F5F9",
+        "on_bg_muted": "#94A3B8",
+        "roles": {
+          "link": "#38BDF8",
+          "error": "#F87171",
+          "success": "#34D399",
+          "warning": "#FBBF24"
+        }
+      },
+      {
+        "name": "panel",
+        "kind": "solid",
+        "bg": "#111722",
+        "on_bg": "#F8FAFC",
+        "on_bg_muted": "#94A3B8",
+        "roles": {
+          "link": "#60A5FA",
+          "error": "#EF4444",
+          "success": "#10B981",
+          "warning": "#F59E0B"
+        }
+      },
+      {
+        "name": "card_elevated",
+        "kind": "solid",
+        "bg": "#161F30",
+        "on_bg": "#FFFFFF",
+        "on_bg_muted": "#A0ABBA",
+        "roles": {
+          "link": "#38BDF8",
+          "error": "#F87171",
+          "success": "#34D399"
+        }
+      },
+      {
+        "name": "metric_chip_call",
+        "kind": "solid",
+        "bg": "#064E3B",
+        "on_bg": "#6EE7B7",
+        "on_bg_muted": "#A7F3D0"
+      },
+      {
+        "name": "metric_chip_put",
+        "kind": "solid",
+        "bg": "#7F1D1D",
+        "on_bg": "#FCA5A5",
+        "on_bg_muted": "#FECACA"
+      },
+      {
+        "name": "metric_chip_neutral",
+        "kind": "solid",
+        "bg": "#1E293B",
+        "on_bg": "#CBD5E1",
+        "on_bg_muted": "#94A3B8"
+      },
+      {
+        "name": "top_header",
+        "kind": "glass",
+        "contrast_against": "#0B0E14",
+        "guarantee": "backdrop-blur-xl bg-[#0B0E14]/90 border-b border-[#1E293B]",
+        "on_bg": "#F8FAFC",
+        "on_bg_muted": "#94A3B8",
+        "roles": {
+          "link": "#38BDF8"
+        }
+      },
+      {
+        "name": "inverse",
+        "kind": "solid",
+        "bg": "#F8FAFC",
+        "on_bg": "#0B0E14",
+        "on_bg_muted": "#475569"
+      }
+    ],
+    "accent": "#0284C7",
+    "on_accent": "#FFFFFF",
+    "trading_signals": {
+      "call_buy": "#10B981",
+      "call_buy_soft_bg": "#064E3B40",
+      "put_buy": "#EF4444",
+      "put_buy_soft_bg": "#7F1D1D40",
+      "no_trade": "#64748B",
+      "no_trade_soft_bg": "#33415540",
+      "vwap_line": "#F59E0B",
+      "ema_fast": "#38BDF8",
+      "ema_slow": "#EC4899",
+      "target_line": "#10B981",
+      "stoploss_line": "#EF4444",
+      "entry_line": "#60A5FA"
+    }
+  },
+  "typography": {
+    "font_heading": "'Manrope Variable', sans-serif",
+    "font_body": "'IBM Plex Sans', sans-serif",
+    "font_mono": "'JetBrains Mono Variable', monospace",
+    "scale_px": {
+      "display": 48,
+      "h1": 36,
+      "h2": 28,
+      "h3": 20,
+      "h4": 16,
+      "body": 14,
+      "caption": 12
+    },
+    "hierarchy_rules": {
+      "hero_h1": "text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight",
+      "section_h2": "text-xl sm:text-2xl font-semibold tracking-tight",
+      "widget_title": "text-sm font-semibold uppercase tracking-wider text-slate-400",
+      "numbers_numbers": "font-mono font-semibold tracking-tight",
+      "body_text": "text-sm leading-relaxed text-slate-200",
+      "caption_text": "text-xs text-slate-400 font-mono"
+    }
+  },
+  "entry_surfaces": {
+    "/": "Quantitative Trading Command Center — Live market ticker & status bar top, high-priority Signal Action Card & Live Candlestick chart with SL/TP overlay left-center, Option indicators & scanner matrix right, live signal activity table bottom",
+    "/signals": "Signal Log & Strategy Execution Surface — multi-filter header (symbol/expiry/strike/CALL-PUT/status/confidence), detailed signal drill-down drawers with factor breakdown and P&L attribution",
+    "/option-scanner": "Full F&O Option Chain Matrix — expiry tab switcher, strike ladder (CE metrics left, PE metrics right, ATM highlight, PCR gauge, Max Pain indicator, OI build-up badges)",
+    "/market-analysis": "Technical & Quantitative Decomposition — Multi-timeframe indicator dashboard (VWAP, EMA 20/50, RSI, MACD, Volume Delta, Option Greeks)",
+    "/backtesting": "Quantitative Backtesting Engine & Risk Audit — Strategy configuration panel left, Equity curve & Max Drawdown interactive charts center, Trade execution log & dataset partition disclosure right",
+    "/paper-trading": "Virtual Execution Terminal — Active paper positions, live Unrealized/Realized P&L, 1-click execution of generated signals, Risk Limits & Margin Utilization monitor",
+    "/settings": "Risk & Algorithm Parameter Control Panel — Fast/Slow EMA multipliers, Min Confidence Score thresholds, Risk:Reward floors, daily max drawdown limits, and data feed settings"
+  },
+  "layout_and_grids": {
+    "system": "Dense high-throughput trading bento layout with 1px precision structural borders (#1E293B / #334155)",
+    "container_max_width": "max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-5",
+    "dashboard_grid": "grid grid-cols-1 lg:grid-cols-12 gap-4",
+    "chart_col_span": "lg:col-span-8 space-y-4",
+    "sidebar_col_span": "lg:col-span-4 space-y-4",
+    "indicators_grid": "grid grid-cols-2 sm:grid-cols-4 gap-3",
+    "table_style": "dense font-mono text-xs border border-slate-800 rounded-md overflow-hidden"
+  },
+  "motion": {
+    "strategy": "Micro-precision tactical feedback without slowing data perception",
+    "pulse_live_badge": "animate-pulse duration-1000",
+    "signal_transition": "transition-all duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-cyan-950/40",
+    "price_tick_flash": "transition-colors duration-300",
+    "drawer_transition": "transition-transform duration-250 ease-in-out"
+  },
+  "accessibility": {
+    "contrast_standards": "All text strictly exceeds WCAG AA 4.5:1 on dark surfaces (#0B0E14, #111722). Muted text uses #94A3B8 (contrast ratio 6.8:1 against #111722)",
+    "color_blind_safety": "All Bullish/Bearish or CALL/PUT states combine color with distinct iconography (▲/▼, Checkmark/Cross, text pill labels 'CE' / 'PE', 'CALL' / 'PUT')",
+    "data_testids": "All interactive buttons, strike selectors, filter dropdowns, paper trade buttons, and modal triggers must have explicit data-testid attributes (e.g., data-testid='symbol-selector', data-testid='execute-paper-trade-button', data-testid='backtest-run-btn')"
+  },
+  "visual_enhancers": {
+    "grid_borders": "1px solid border-slate-800/80 with subtle hover highlights",
+    "scrim_disclaimer": "Prominent sticky top or bottom trading disclaimer bar: '⚠️ Probability-based signal generator & paper-trading simulation. Not investment advice. No real orders are placed.'",
+    "status_badges": {
+      "live_market": "bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1.5",
+      "market_closed": "bg-amber-950/80 text-amber-400 border border-amber-500/30 text-xs px-2 py-0.5 rounded-full font-mono flex items-center gap-1.5",
+      "call_active": "bg-emerald-900/60 text-emerald-300 border border-emerald-500/40 font-bold",
+      "put_active": "bg-rose-900/60 text-rose-300 border border-rose-500/40 font-bold"
+    }
+  },
+  "component_path_map": {
+    "dashboard_page": "frontend/src/pages/Dashboard.tsx",
+    "signals_page": "frontend/src/pages/Signals.tsx",
+    "option_scanner_page": "frontend/src/pages/OptionScanner.tsx",
+    "market_analysis_page": "frontend/src/pages/MarketAnalysis.tsx",
+    "backtesting_page": "frontend/src/pages/Backtesting.tsx",
+    "paper_trading_page": "frontend/src/pages/PaperTrading.tsx",
+    "settings_page": "frontend/src/pages/Settings.tsx",
+    "navigation_bar": "frontend/src/components/layout/Navbar.tsx",
+    "market_status_bar": "frontend/src/components/trading/MarketStatusBar.tsx",
+    "live_chart_widget": "frontend/src/components/trading/LiveChartWidget.tsx",
+    "signal_card_widget": "frontend/src/components/trading/SignalCardWidget.tsx",
+    "market_indicators_widget": "frontend/src/components/trading/MarketIndicatorsWidget.tsx",
+    "option_chain_table": "frontend/src/components/trading/OptionChainTable.tsx",
+    "backtest_result_view": "frontend/src/components/trading/BacktestResultView.tsx"
+  },
+  "instructions_to_main_agent": [
+    "1. Theme: Use Obsidian Dark terminal theme by default (#0B0E14 background, #111722 panel cards, Slate & Emerald/Rose accents). Ensure high-contrast numbers with monospace font for price, strikes, and OI figures.",
+    "2. Market Overview: Support NIFTY, BANK NIFTY, FINNIFTY, and key F&O stocks (RELIANCE, HDFCBANK, INFY, ICICIBANK, TCS, TATAMOTORS, etc.) with live toggle, price ticker, day range, data freshness indicator (🟢 LIVE / 🔴 STALE / 🟡 MARKET CLOSED), and sentiment meter.",
+    "3. Current Signal Card: Highlight current active recommendation (🟢 BUY CALL / 🔴 BUY PUT / ⚪ NO TRADE), underlying asset, strike & type (e.g. 24800 CE), expiry date, Entry Range (₹120-125), Stop Loss (₹95), Target 1 (₹155), Target 2 (₹185), Risk:Reward ratio (1:1.8), Signal Confidence Score (e.g. 84/100), and a structured 'Signal Factor Rationale' checklist (VWAP cross ✓, RSI Momentum ✓, EMA 20>50 ✓, Option Chain PCR > 1.2 ✓, High OI Support ✓).",
+    "4. Interactive Recharts Candlestick / Price Chart: Render price action with VWAP line, EMA 20, EMA 50, Support/Resistance zones, plus Entry, Stop Loss, Target 1, Target 2 horizontal reference lines whenever a signal is active.",
+    "5. Option Chain Scanner: Real-time table with Calls on left, Strikes in center, Puts on right. Show LTP, Net Change, Volume, OI, OI Chg, IV, Delta, PCR summary, Max Pain strike, and highlight 'RECOMMENDED STRIKE' vs 'CONTRACT REJECTED - LOW LIQUIDITY'.",
+    "6. Backtesting System: Provide full configuration (Asset, Date Range, Strategy preset: Trend Following VWAP+EMA, RSI Mean Reversion, Momentum Breakout, Initial Capital ₹1,00,000, Max Risk per trade). Display background job progression, summary KPI cards (Win Rate %, Profit Factor, Max Drawdown %, Gross P&L, Net P&L after estimated slippage and brokerage), interactive Equity Curve & Drawdown Chart, monthly breakdown matrix, and trade-by-trade audit table with dev/validation/out-of-sample data split disclosure.",
+    "7. Paper Trading Simulator: Virtual ₹5,00,000 portfolio, open positions list with live Unrealized P&L, 1-click 'Execute Signal in Paper Account' button from the live signal card, position sizing calculator based on risk parameter, and closed trades history.",
+    "8. Settings & Strategy Engine: Parameter tuning for Fast/Slow EMA, RSI bounds, Min Signal Strength cutoff (e.g. 70/100), Min Risk:Reward ratio (e.g. 1:1.5), Max daily loss cutoff, Max daily trades, and paper trading balance reset.",
+    "9. Disclaimers: Prominent disclaimer banner at the bottom stating all signals are algorithmic simulations for educational and paper trading purposes only, not financial advice.",
+    "10. Toast notifications with Sonner when new signals trigger, Target 1/2 hit, or Stop Loss reached in paper trading.",
+    "11. Ensure all clickable buttons and inputs include specific `data-testid` attributes."
+  ]
+}
