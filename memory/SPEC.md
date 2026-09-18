@@ -173,3 +173,50 @@ historical data" loop, not a silent override.
 - Notifications are in-app (bell + toasts) only; Telegram/email/push are left as future
   channels behind the same `notify()` seam.
 - Live ticks use REST polling, not SmartWebSocketV2 streaming.
+
+## Data store: MongoDB (preview) vs AngleTrending SQL Server (local/prod)
+`DB_BACKEND` in backend/.env selects the store: `mongo` (default; the hosted preview
+cannot reach a LAN SQL Server) or `sqlserver` (the user's AngleTrending database on
+PRAKASHPC\SQLEXPRESS). Switching is a .env change plus `sudo supervisorctl restart backend`.
+
+**Hard constraint from the user: the application must never create, drop, rename or alter a
+database object.** All SQL access goes through the stored procedures that already exist.
+Any schema need is delivered as a migration script in `/app/migrations` for the user to run
+manually; only then is the app code updated to use it.
+
+- `lib/sqlserver.py` — env-driven ODBC config, per-call pyodbc connections executed on a
+  worker thread, `call_proc()` (parameterised EXEC; only the proc *name* is interpolated and
+  every call site passes a literal), read-only `select()` for metadata, and `health()` which
+  never raises. Passwords are never logged (`connection_string(redacted=True)`) and never
+  leave the backend.
+- `lib/repo_sql.py` — 38 async functions mapping every app operation onto the 31 existing
+  procedures, plus the 6 optional ones from migration 001. Highlights:
+  - Instruments are upserted per traded contract (`usp_Instruments_Upsert`) with a
+    symbol→InstrumentId cache, so signals/paper trades carry a real FK and expired
+    contracts keep their identity (§36.7).
+  - The full signal audit payload (indicator values, per-factor direction breakdown, option
+    snapshot with greeks, rejected candidates, risk inputs) is serialised into
+    `Signals.IndicatorSnapshot` as JSON (§23).
+  - Settings split as the schema intends: strategy parameters →
+    `usp_Strategies_SaveParameter`; risk/data/option config → `usp_AppSettings_Upsert`.
+  - Notifications reuse `dbo.ApplicationLogs` with `Component='NOTIFICATION'` (no schema
+    change); `CorrelationId` carries the SignalId so duplicates are detectable (AC-64).
+  - Backtest writes prefer the `_V2` procs and **fall back to the originals when migration
+    001 has not been run**, logging the shortfall instead of inventing columns.
+- `routers/database.py` — `GET /api/database/status` (backend, connectivity, table/proc
+  counts, pending migrations; no secrets) and `GET /api/database/capabilities` (admin only).
+  Surfaced in Settings → Data & notifications → "Data store".
+- `backend/verify_sqlserver.py` — run on the user's machine: checks connection, inventories
+  all 15 tables / 31 procs, exercises every read proc, and with `--write` exercises every
+  write proc using `ZZTEST` probe rows (then prints DELETE statements for them). Confirms
+  candle upsert idempotency (AC-03).
+
+### Known gap (needs a proc, not yet requested)
+`dbo.SignalHistory` has no insert procedure in the user's schema, so the per-event lifecycle
+trail is currently written to `ApplicationLogs`; signal status/exit itself is persisted via
+`usp_Signals_UpdateResult`. A `usp_SignalHistory_Write` proc would be migration 002.
+
+### Still to wire (SQL mode)
+The repository and verifier are complete, but the engine/backtest/router call sites still
+read and write through motor. Porting them is gated on the user confirming connectivity and
+migration 001 from their machine, since none of it can be executed from the cloud preview.

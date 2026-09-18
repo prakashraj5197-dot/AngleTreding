@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProviderPanel } from "@/components/trading/ProviderPanel";
+import { DatabasePanel } from "@/components/trading/DatabasePanel";
 import { Metric, Panel, PageShell } from "@/components/layout/PageShell";
 import { istDateTime, num } from "@/lib/format";
 import type { AppSettings, AuthState } from "@/lib/types";
@@ -275,6 +276,7 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="data">
+            <DatabasePanel />
             <ProviderPanel signedIn={signedIn} />
             <Panel title="Market data, freshness & notifications" testid="data-settings-panel">
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

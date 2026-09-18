@@ -27,6 +27,7 @@ from lib.db import client, db, ensure_indexes  # noqa: E402
 from lib.dates import now_utc  # noqa: E402
 from routers import (  # noqa: E402
     backtest_routes,
+    database as database_router,
     market,
     paper,
     provider as provider_router,
@@ -116,6 +117,7 @@ api_router.include_router(backtest_routes.router)
 api_router.include_router(paper.router)
 api_router.include_router(settings_routes.router)
 api_router.include_router(provider_router.router)
+api_router.include_router(database_router.router)
 
 app.add_middleware(
     CORSMiddleware,

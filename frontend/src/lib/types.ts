@@ -409,6 +409,24 @@ export interface DataSettings {
   retention_option_snapshot_days: number;
 }
 
+export interface DbStatus {
+  backend: string;
+  label: string;
+  connected: boolean;
+  configured: boolean;
+  missing_env: string[];
+  host: string | null;
+  database: string | null;
+  driver_available: boolean;
+  drivers: string[];
+  tables: number | null;
+  procedures: number | null;
+  server_utc: string | null;
+  detail: string;
+  migration_001_applied: boolean | null;
+  pending_migrations: string[];
+}
+
 export interface ProviderStatus {
   provider: string;
   label: string;
