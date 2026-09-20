@@ -52,6 +52,29 @@ export function DatabasePanel() {
         </p>
       ) : null}
 
+      {sql && data?.store_tables_missing?.length ? (
+        <div
+          className="mt-3 flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 p-3"
+          data-testid="db-pending-store-migration"
+        >
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-rose-400" />
+          <p className="text-xs leading-relaxed text-rose-200/90">
+            Pending migration: <span className="font-mono">migrations/002_app_store.sql</span> —{" "}
+            {data.store_tables_missing.length} of {data.store_tables_total} application tables are
+            missing, so signals, candles, paper trades and backtests cannot be persisted. Run the
+            script against <span className="font-mono">{data.database}</span>, then restart the
+            backend.
+          </p>
+        </div>
+      ) : null}
+
+      {sql && data?.connected && data?.store_tables_missing?.length === 0 ? (
+        <p className="mt-3 flex items-center gap-2 text-xs text-emerald-300/90" data-testid="db-store-ok">
+          <CheckCircle2 className="size-4" /> Application store ready — all {data.store_tables_total}{" "}
+          tables present. Every read and write goes to SQL Server.
+        </p>
+      ) : null}
+
       {sql && data?.migration_001_applied === false ? (
         <div
           className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3"
@@ -73,9 +96,11 @@ export function DatabasePanel() {
       ) : null}
 
       <p className="mt-3 text-[11px] leading-relaxed text-slate-500">
-        The application only calls your existing stored procedures. It never creates, drops,
-        renames or alters a database object — any schema change is delivered to you as a
-        migration script in <span className="font-mono">/app/migrations</span> to run manually.
+        The application never creates, drops, renames or alters a database object. It reads and
+        writes only the additive <span className="font-mono">Fno*</span> tables created by
+        <span className="font-mono"> migrations/002_app_store.sql</span> and calls your existing
+        stored procedures — any schema change is delivered as a script in{" "}
+        <span className="font-mono">/app/migrations</span> for you to run manually.
       </p>
     </Panel>
   );

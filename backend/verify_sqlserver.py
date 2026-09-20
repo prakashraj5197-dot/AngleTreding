@@ -121,6 +121,69 @@ async def check_objects() -> None:
         print("     figures are computed for display only and not stored.")
 
 
+async def check_store() -> None:
+    """The application store (Fno* tables from migrations/002) — tables + live CRUD probe."""
+    print("\n=== 3b. Application store (migrations/002_app_store.sql) ===")
+    from lib import store
+
+    try:
+        missing = await store.missing_tables()
+    except S.SqlServerUnavailable as exc:
+        report("store tables", False, str(exc))
+        return
+    for coll in store.COLUMNS:
+        name = store.table_name(coll).split(".")[-1]
+        report(f"table dbo.{name}", name not in missing)
+    if missing:
+        print("\n  -> Run migrations/002_app_store.sql against this database, then re-run.")
+        print("     Until then the application cannot persist anything in SQL Server mode.")
+        return
+
+    print("\n  CRUD round-trip through the store adapter (probe rows, cleaned up):")
+    from lib.db import db  # resolves to the SQL Server store because DB_BACKEND is forced above
+
+    now = datetime.now(UTC)
+    try:
+        await db.notifications.delete_many({"signal_id": "ZZTEST-STORE"})
+        await db.notifications.insert_one({
+            "signal_id": "ZZTEST-STORE", "type": "NEW_SIGNAL", "read": False,
+            "ts": now, "title": "store probe", "body": "verify_sqlserver.py",
+            "payload": {"nested": {"ok": True}, "list": [1, 2, 3]},
+        })
+        doc = await db.notifications.find_one({"signal_id": "ZZTEST-STORE"})
+        report("insert_one + find_one", bool(doc) and doc.get("title") == "store probe")
+        report("nested JSON round-trip", bool(doc) and doc["payload"]["nested"]["ok"] is True)
+        report("datetime round-trip", bool(doc) and isinstance(doc.get("ts"), datetime)
+               and abs((doc["ts"] - now).total_seconds()) < 1)
+        await db.notifications.update_one({"signal_id": "ZZTEST-STORE"},
+                                          {"$set": {"read": True}})
+        doc = await db.notifications.find_one({"signal_id": "ZZTEST-STORE"})
+        report("update_one $set", bool(doc) and doc.get("read") is True)
+        n = await db.notifications.count_documents({"signal_id": {"$in": ["ZZTEST-STORE"]}})
+        report("count_documents + $in", n == 1, f"{n} row(s)")
+        rows = await db.notifications.find({"read": True}).sort("ts", -1).limit(5).to_list(5)
+        report("find().sort().limit().to_list()", len(rows) >= 1, f"{len(rows)} row(s)")
+        deleted = await db.notifications.delete_many({"signal_id": "ZZTEST-STORE"})
+        report("delete_many cleanup", deleted.deleted_count == 1)
+    except Exception as exc:
+        report("store CRUD round-trip", False, str(exc))
+
+    try:
+        from pymongo import UpdateOne
+
+        ops = [UpdateOne({"symbol": "ZZTEST", "timeframe": "5m", "ts": now},
+                         {"$set": {"symbol": "ZZTEST", "timeframe": "5m", "ts": now,
+                                   "open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5,
+                                   "volume": 10, "oi": 0}}, upsert=True)]
+        await db.candles.bulk_write(ops)
+        await db.candles.bulk_write(ops)  # again: must upsert, not duplicate
+        n = await db.candles.count_documents({"symbol": "ZZTEST"})
+        report("bulk upsert is idempotent (candle seeding path)", n == 1, f"{n} row(s)")
+        await db.candles.delete_many({"symbol": "ZZTEST"})
+    except Exception as exc:
+        report("bulk upsert", False, str(exc))
+
+
 async def check_reads() -> None:
     print("\n=== 4. Read procedures ===")
     probes = [
@@ -353,6 +416,7 @@ async def main() -> int:
         print("\nRESULT: cannot continue — fix the connection first.")
         return 1
     await check_objects()
+    await check_store()
     await check_reads()
     if args.write:
         await check_writes()

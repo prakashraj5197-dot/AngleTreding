@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from lib import repo_sql, sqlserver
+from lib import repo_sql, sqlserver, store
 from lib.auth import require_admin
 from lib.db import db
 
@@ -33,6 +33,8 @@ class DbStatusOut(BaseModel):
     detail: str = ""
     migration_001_applied: bool | None = None
     pending_migrations: list[str] = []
+    store_tables_total: int | None = None
+    store_tables_missing: list[str] = []
 
 
 @router.get("/status", response_model=DbStatusOut)
@@ -67,6 +69,18 @@ async def status():
         out.migration_001_applied = bool(caps.get("usp_BacktestRuns_CreateV2"))
         if not out.migration_001_applied:
             out.pending_migrations = ["001_backtest_reporting_columns.sql"]
+        # 002 creates the application store the whole app reads/writes through
+        try:
+            missing = await store.missing_tables()
+        except Exception as exc:  # connection dropped between calls
+            out.detail = f"{out.detail} Store check failed: {exc}"
+            return out
+        out.store_tables_total = len(store.COLUMNS)
+        out.store_tables_missing = missing
+        if missing:
+            out.pending_migrations.append("002_app_store.sql")
+            out.detail = (f"{out.detail} {len(missing)} application table(s) missing — run "
+                          "migrations/002_app_store.sql.")
     return out
 
 

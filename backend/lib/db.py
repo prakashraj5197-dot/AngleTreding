@@ -1,20 +1,28 @@
-"""Shared Mongo handle — import `client`/`db` from here (server.py, routers, seed.py)."""
+"""Shared data handle — import `client`/`db` from here (server.py, routers, seed.py).
+
+ONE SWITCH: `DB_BACKEND` in backend/.env decides where every read and write goes.
+
+    DB_BACKEND=sqlserver   → AngleTrending SQL Server (lib/store.py; tables from
+                             migrations/002_app_store.sql). Use this locally/in prod.
+    DB_BACKEND=mongo       → MongoDB (default; the cloud preview cannot reach a LAN
+                             SQL Server instance, so the demo keeps working)
+
+Both handles expose the same API, so no router, engine or script needs to know which
+store is live.
+"""
 
 import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-mongo_url = os.environ["MONGO_URL"]
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ["DB_NAME"]]
-
 logger = logging.getLogger(__name__)
+
+BACKEND = (os.environ.get("DB_BACKEND") or "mongo").strip().lower()
 
 # One entry per collection: every field a route filters, sorts, or dedupes on.
 INDEXES: dict[str, list[IndexModel]] = {
@@ -64,7 +72,38 @@ INDEXES: dict[str, list[IndexModel]] = {
 }
 
 
+if BACKEND == "sqlserver":
+    from lib.store import SqlClientShim, SqlStore
+
+    client = SqlClientShim()   # type: ignore[assignment]
+    db = SqlStore()            # type: ignore[assignment]
+    logger.info("data backend = SQL Server (AngleTrending)")
+else:
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+    client = AsyncIOMotorClient(os.environ["MONGO_URL"])  # type: ignore[assignment]
+    db = client[os.environ["DB_NAME"]]                    # type: ignore[assignment]
+    logger.info("data backend = MongoDB (%s)", os.environ.get("DB_NAME"))
+
+
 async def ensure_indexes() -> None:
+    """Mongo: create the indexes above. SQL Server: nothing — the indexes ship with
+    migrations/002_app_store.sql, and the application never issues DDL."""
+    if BACKEND == "sqlserver":
+        from lib import store
+        try:
+            missing = await store.missing_tables()
+        except Exception as exc:
+            logger.error("SQL Server store unreachable: %s", exc)
+            return
+        if missing:
+            logger.error("SQL Server store is missing %d table(s): %s — run "
+                         "migrations/002_app_store.sql against your AngleTrending database.",
+                         len(missing), ", ".join(missing))
+        else:
+            logger.info("SQL Server store ready — all %d application tables present.",
+                        len(store.COLUMNS))
+        return
     for collection, models in INDEXES.items():
         for model in models:  # one at a time so a bad spec skips only itself
             try:

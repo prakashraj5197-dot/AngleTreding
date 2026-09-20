@@ -255,6 +255,132 @@ async def health() -> dict[str, Any]:
     return state
 
 
+def _execute_sync(sql: str, params: Sequence[Any]) -> int:
+    conn = _connect_sync()
+    try:
+        cur = conn.cursor()
+        try:
+            cur.execute(sql, tuple(params))
+            return max(cur.rowcount, 0)
+        finally:
+            cur.close()
+    except SqlServerUnavailable:
+        raise
+    except Exception as exc:
+        raise SqlServerUnavailable(f"{sql[:60]}…: {exc}") from exc
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+async def execute(sql: str, params: Sequence[Any] = ()) -> int:
+    """Run one INSERT/UPDATE/DELETE against an application table; returns rows affected.
+
+    Values are always bound as ODBC parameters. No caller in this codebase passes DDL,
+    and `guard_no_ddl` rejects it outright so a pre-existing object can never be altered.
+    """
+    guard_no_ddl(sql)
+    return await asyncio.to_thread(_execute_sync, sql, list(params))
+
+
+def _executemany(cur, sql: str, rows: Sequence[Sequence[Any]]) -> None:
+    """executemany with the fast path first.
+
+    pyodbc's fast_executemany can reject NVARCHAR(MAX) parameters on some driver
+    versions ("String data, right truncation"), so fall back to the standard path
+    rather than failing the write.
+    """
+    data = [tuple(r) for r in rows]
+    try:
+        cur.fast_executemany = True
+        cur.executemany(sql, data)
+    except Exception:
+        cur.fast_executemany = False
+        cur.executemany(sql, data)
+
+
+def _execute_many_sync(sql: str, rows: Sequence[Sequence[Any]]) -> int:
+    conn = _connect_sync()
+    try:
+        cur = conn.cursor()
+        try:
+            _executemany(cur, sql, rows)
+            return len(rows)
+        finally:
+            cur.close()
+    except Exception as exc:
+        raise SqlServerUnavailable(f"executemany {sql[:60]}…: {exc}") from exc
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+async def execute_many(sql: str, rows: Sequence[Sequence[Any]]) -> int:
+    guard_no_ddl(sql)
+    if not rows:
+        return 0
+    return await asyncio.to_thread(_execute_many_sync, sql, rows)
+
+
+def _merge_batch_sync(table: str, cols: Sequence[str], rows: Sequence[Sequence[Any]],
+                      keys: Sequence[str]) -> int:
+    """Bulk upsert: stage the batch in a #temp table, then MERGE it into `table`.
+
+    The #temp table is session-scoped (tempdb) — the user's schema is untouched.
+    """
+    conn = _connect_sync()
+    try:
+        cur = conn.cursor()
+        try:
+            col_list = ", ".join(cols)
+            cur.execute(f"SELECT {col_list} INTO #stage FROM {table} WHERE 1 = 0")
+            _executemany(
+                cur,
+                f"INSERT INTO #stage ({col_list}) VALUES ({', '.join('?' * len(cols))})",
+                rows)
+            on = " AND ".join(f"T.[{k}] = S.[{k}]" for k in keys) if keys else "1 = 0"
+            updates = ", ".join(f"T.{c} = S.{c}" for c in cols)
+            cur.execute(f"""
+                MERGE {table} AS T
+                USING #stage AS S ON {on}
+                WHEN MATCHED THEN UPDATE SET {updates}
+                WHEN NOT MATCHED THEN INSERT ({col_list})
+                     VALUES ({', '.join('S.' + c for c in cols)});
+            """)
+            cur.execute("DROP TABLE #stage")
+            return len(rows)
+        finally:
+            cur.close()
+    except Exception as exc:
+        raise SqlServerUnavailable(f"merge into {table}: {exc}") from exc
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
+async def merge_batch(table: str, cols: Sequence[str], rows: Sequence[Sequence[Any]],
+                      keys: Sequence[str]) -> int:
+    if not rows:
+        return 0
+    return await asyncio.to_thread(_merge_batch_sync, table, list(cols), rows, list(keys))
+
+
+_DDL_WORDS = ("create ", "alter ", "drop ", "truncate ", "rename ", "grant ", "exec ")
+
+
+def guard_no_ddl(sql: str) -> None:
+    """Hard stop: the application must never change a database object (user's rule)."""
+    head = sql.strip().lower()
+    if any(head.startswith(w) for w in _DDL_WORDS):
+        raise SqlServerUnavailable(f"refusing to run schema-changing statement: {sql[:40]}…")
+
+
 async def select(sql: str, params: Sequence[Any] = ()) -> list[dict[str, Any]]:
     """Run a read-only statement (metadata inventory / health only).
 

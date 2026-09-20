@@ -425,6 +425,8 @@ export interface DbStatus {
   detail: string;
   migration_001_applied: boolean | null;
   pending_migrations: string[];
+  store_tables_total: number | null;
+  store_tables_missing: string[];
 }
 
 export interface ProviderStatus {

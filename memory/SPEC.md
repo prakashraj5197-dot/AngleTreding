@@ -174,10 +174,33 @@ historical data" loop, not a silent override.
   channels behind the same `notify()` seam.
 - Live ticks use REST polling, not SmartWebSocketV2 streaming.
 
-## Data store: MongoDB (preview) vs AngleTrending SQL Server (local/prod)
-`DB_BACKEND` in backend/.env selects the store: `mongo` (default; the hosted preview
-cannot reach a LAN SQL Server) or `sqlserver` (the user's AngleTrending database on
-PRAKASHPC\SQLEXPRESS). Switching is a .env change plus `sudo supervisorctl restart backend`.
+## Data store: AngleTrending SQL Server (local/prod) vs MongoDB (preview)
+`DB_BACKEND` in backend/.env is the ONE switch and it moves the entire application:
+`sqlserver` → the user's AngleTrending database; `mongo` (default) → MongoDB, used only
+because the hosted preview cannot reach a LAN SQL Server. Switching is a .env change plus
+`sudo supervisorctl restart backend` — no code edit, no per-feature toggle.
+
+- `lib/db.py` resolves `db` to either the motor handle or `lib/store.py`'s `SqlStore`.
+  Every router, engine, script and test imports that one handle, so both stores serve
+  100% of the app's reads/writes.
+- `lib/store.py` — SQL Server document store implementing the motor subset the codebase
+  uses (find/find_one/count_documents/insert_one/insert_many/update_one/update_many/
+  replace_one/delete_one/delete_many/bulk_write/drop; operators `$set $in $nin $gte $gt
+  $lte $lt $ne`; an unsupported operator raises instead of returning wrong rows). Storage
+  is one additive `dbo.Fno*` table per collection: full record in a `Doc` JSON column
+  (datetimes keep their timezone) plus typed indexed columns for every filtered/sorted
+  field. Candle seeding goes through a #temp staging table + MERGE, so ~250k rows is a
+  handful of round-trips. `COLUMNS`/`UNIQUE`/`INDEXES` in this module are the single
+  source of truth: `backend/gen_store_schema.py` generates
+  `migrations/002_app_store.sql` from them.
+- `migrations/002_app_store.sql` — REQUIRED for sqlserver mode; creates the 12 `Fno*`
+  tables + indexes, guarded so re-running is safe. `/api/database/status` reports
+  `store_tables_missing` and the UI (Settings → Data store) shows it as pending.
+- `backend/tests/test_store_sql.py` — 27 tests asserting the generated T-SQL/params for
+  every query shape the app issues (no database needed), plus a DDL-refusal check.
+- `verify_sqlserver.py` adds a live CRUD round-trip through the store against the real
+  database (insert → read → `$set` → count → sorted page → delete + idempotent bulk
+  candle upsert).
 
 **Hard constraint from the user: the application must never create, drop, rename or alter a
 database object.** All SQL access goes through the stored procedures that already exist.
